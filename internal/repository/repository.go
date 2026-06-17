@@ -36,6 +36,17 @@ func (r *Repository) Sectors(ctx context.Context) ([]string, error) {
 	return sectors, rows.Err()
 }
 
+func (r *Repository) PriceStatus(ctx context.Context) (models.PriceStatus, error) {
+	var status models.PriceStatus
+	err := r.db.QueryRow(ctx, `
+select
+	coalesce(max(date), date '0001-01-01') as latest_date,
+	count(distinct stock_code)::int as stock_count,
+	count(*)::int as price_count
+from prices`).Scan(&status.LatestDate, &status.StockCount, &status.PriceCount)
+	return status, err
+}
+
 func (r *Repository) Screener(ctx context.Context, filters models.Filters, limit int) ([]models.StockMetric, error) {
 	rows, err := r.db.Query(ctx, metricsQuery+`
 select *

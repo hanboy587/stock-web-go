@@ -54,6 +54,12 @@ type PricePoint struct {
 	Volume int64
 }
 
+type PriceStatus struct {
+	LatestDate time.Time
+	StockCount int
+	PriceCount int
+}
+
 type NewsItem struct {
 	Title       string
 	Link        string

@@ -31,7 +31,7 @@ func (c *Client) FetchMarketNews(ctx context.Context, queries []string, limit in
 			continue
 		}
 		for _, item := range queryItems {
-			key := strings.ToLower(item.Title + item.Link)
+			key := normalizedNewsKey(item)
 			if seen[key] {
 				continue
 			}
@@ -54,6 +54,17 @@ func (c *Client) FetchStockNews(ctx context.Context, name string, code string, l
 	if err != nil {
 		return nil, err
 	}
+	seen := map[string]bool{}
+	deduped := make([]models.NewsItem, 0, len(items))
+	for _, item := range items {
+		key := normalizedNewsKey(item)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		deduped = append(deduped, item)
+	}
+	items = deduped
 	if limit > 0 && len(items) > limit {
 		items = items[:limit]
 	}
@@ -81,19 +92,46 @@ func (c *Client) fetchGoogleNewsRSS(ctx context.Context, query string) ([]models
 
 	items := make([]models.NewsItem, 0, len(feed.Channel.Items))
 	for _, item := range feed.Channel.Items {
+		title := cleanTitle(item.Title, item.Source.Name)
+		link := strings.TrimSpace(item.Link)
+		if title == "" || link == "" {
+			continue
+		}
 		published, _ := time.Parse(time.RFC1123Z, item.PubDate)
 		if published.IsZero() {
 			published, _ = time.Parse(time.RFC1123, item.PubDate)
 		}
+		source := strings.TrimSpace(item.Source.Name)
+		if source == "" {
+			source = "Google News"
+		}
 		items = append(items, models.NewsItem{
-			Title:       strings.TrimSpace(item.Title),
-			Link:        strings.TrimSpace(item.Link),
-			Source:      strings.TrimSpace(item.Source.Name),
+			Title:       title,
+			Link:        link,
+			Source:      source,
 			PublishedAt: published,
 			Query:       query,
 		})
 	}
 	return items, nil
+}
+
+func cleanTitle(title string, source string) string {
+	title = strings.Join(strings.Fields(strings.TrimSpace(title)), " ")
+	source = strings.TrimSpace(source)
+	if source != "" {
+		title = strings.TrimSuffix(title, " - "+source)
+	}
+	return strings.TrimSpace(title)
+}
+
+func normalizedNewsKey(item models.NewsItem) string {
+	title := strings.ToLower(strings.Join(strings.Fields(item.Title), " "))
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return strings.ToLower(strings.TrimSpace(item.Link))
+	}
+	return title
 }
 
 type rssFeed struct {

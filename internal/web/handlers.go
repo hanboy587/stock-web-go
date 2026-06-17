@@ -41,6 +41,7 @@ type ViewData struct {
 	Error            string
 	ResultPath        string
 	MarketDataStatus string
+	PriceStatus      models.PriceStatus
 }
 
 func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string, marketDataStatus string) {
@@ -229,6 +230,10 @@ func (h *Handler) stockNews(ctx context.Context, name string, code string, limit
 func (h *Handler) render(c *fiber.Ctx, page string, data ViewData) error {
 	if data.MarketDataStatus == "" {
 		data.MarketDataStatus = h.marketDataStatus
+		if status, err := h.repo.PriceStatus(requestContext(c)); err == nil {
+			data.PriceStatus = status
+			data.MarketDataStatus = withPriceStatus(h.marketDataStatus, status)
+		}
 	}
 	tpl, err := template.New("layout.html").Funcs(h.funcs).ParseFiles(
 		"templates/layout.html",
@@ -244,6 +249,13 @@ func (h *Handler) render(c *fiber.Ctx, page string, data ViewData) error {
 	}
 	c.Type("html", "utf-8")
 	return c.Send(buf.Bytes())
+}
+
+func withPriceStatus(base string, status models.PriceStatus) string {
+	if status.StockCount == 0 || status.LatestDate.IsZero() || status.LatestDate.Year() <= 1 {
+		return base + " 현재 DB에 가격 데이터가 없습니다."
+	}
+	return fmt.Sprintf("%s 현재 DB 기준일은 %s, 저장 종목은 %s개입니다.", base, status.LatestDate.Format("2006-01-02"), number(status.StockCount))
 }
 
 func (h *Handler) renderPartial(c *fiber.Ctx, file string, name string, data ViewData) error {
