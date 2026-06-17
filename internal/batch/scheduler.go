@@ -9,10 +9,17 @@ import (
 
 	"stockhunter/internal/cache"
 	"stockhunter/internal/marketdata"
+	"stockhunter/internal/models"
 	"stockhunter/internal/repository"
 )
 
-func Start(repo *repository.Repository, cacheClient *cache.Client, publicDataKey string) *cron.Cron {
+type dailyPriceProvider interface {
+	Enabled() bool
+	Name() string
+	FetchDailyPrices(context.Context, time.Time) ([]models.DailyPrice, error)
+}
+
+func Start(repo *repository.Repository, cacheClient *cache.Client, krxAuthKey string, publicDataKey string) *cron.Cron {
 	c := cron.New()
 	_, err := c.AddFunc("@every 15m", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -28,31 +35,77 @@ func Start(repo *repository.Repository, cacheClient *cache.Client, publicDataKey
 		return c
 	}
 
-	publicDataClient := marketdata.NewPublicDataClient(publicDataKey)
-	if publicDataClient.Enabled() {
-		_, err = c.AddFunc("CRON_TZ=Asia/Seoul 35 18 * * 1-5", func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	provider := firstEnabledProvider(
+		marketdata.NewKRXClient(krxAuthKey),
+		marketdata.NewPublicDataClient(publicDataKey),
+	)
+	if provider != nil {
+		run := func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 150*time.Second)
 			defer cancel()
+			runDailyCloseUpdate(ctx, repo, cacheClient, provider)
+		}
 
-			prices, err := publicDataClient.FetchDailyPrices(ctx, time.Now().In(time.FixedZone("KST", 9*60*60)))
-			if err != nil {
-				log.Printf("daily close fetch failed: %v", err)
-				return
-			}
-			if err := repo.UpsertDailyPrices(ctx, prices); err != nil {
-				log.Printf("daily close upsert failed: %v", err)
-				return
-			}
-			cacheClient.Delete(ctx, "home:rankings", "rankings:top50", "sector:strength")
-			log.Printf("daily close updated: %d rows", len(prices))
-		})
+		_, err = c.AddFunc("CRON_TZ=Asia/Seoul 35 18 * * 1-5", run)
 		if err != nil {
 			log.Printf("daily close scheduler disabled: %v", err)
 		}
+		go func() {
+			time.Sleep(3 * time.Second)
+			run()
+		}()
+		log.Printf("daily close updater enabled: %s", provider.Name())
 	} else {
-		log.Printf("daily close updater disabled: PUBLIC_DATA_SERVICE_KEY is empty")
+		log.Printf("daily close updater disabled: KRX_AUTH_KEY and PUBLIC_DATA_SERVICE_KEY are empty")
 	}
 
 	c.Start()
 	return c
+}
+
+func firstEnabledProvider(providers ...dailyPriceProvider) dailyPriceProvider {
+	for _, provider := range providers {
+		if provider.Enabled() {
+			return provider
+		}
+	}
+	return nil
+}
+
+func runDailyCloseUpdate(ctx context.Context, repo *repository.Repository, cacheClient *cache.Client, provider dailyPriceProvider) {
+	now := time.Now().In(time.FixedZone("KST", 9*60*60))
+	prices, date, err := fetchRecentDailyPrices(ctx, provider, now)
+	if err != nil {
+		log.Printf("daily close fetch failed from %s: %v", provider.Name(), err)
+		return
+	}
+	if len(prices) == 0 {
+		log.Printf("daily close fetch returned no rows from %s", provider.Name())
+		return
+	}
+	if err := repo.UpsertDailyPrices(ctx, prices); err != nil {
+		log.Printf("daily close upsert failed: %v", err)
+		return
+	}
+	cacheClient.Delete(ctx, "home:rankings", "rankings:top50", "sector:strength")
+	log.Printf("daily close updated from %s: %s %d rows", provider.Name(), date.Format("2006-01-02"), len(prices))
+}
+
+func fetchRecentDailyPrices(ctx context.Context, provider dailyPriceProvider, now time.Time) ([]models.DailyPrice, time.Time, error) {
+	var lastErr error
+	for dayOffset := 0; dayOffset < 8; dayOffset++ {
+		date := now.AddDate(0, 0, -dayOffset)
+		prices, err := provider.FetchDailyPrices(ctx, date)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if len(prices) > 0 {
+			return prices, date, nil
+		}
+	}
+	if lastErr != nil {
+		return nil, time.Time{}, lastErr
+	}
+	return nil, time.Time{}, nil
 }

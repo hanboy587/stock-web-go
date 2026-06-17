@@ -34,7 +34,7 @@ func main() {
 	defer cacheClient.Close()
 
 	repo := repository.New(pool)
-	scheduler := batch.Start(repo, cacheClient, cfg.PublicDataServiceKey)
+	scheduler := batch.Start(repo, cacheClient, cfg.KRXAuthKey, cfg.PublicDataServiceKey)
 	defer scheduler.Stop()
 
 	app := fiber.New(fiber.Config{
@@ -50,7 +50,7 @@ func main() {
 	})
 
 	app.Static("/static", "./static")
-	web.Register(app, repo, cacheClient, news.New(), cfg.NewsQueries)
+	web.Register(app, repo, cacheClient, news.New(), cfg.NewsQueries, marketDataStatus(cfg))
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {
@@ -62,5 +62,16 @@ func main() {
 	<-ctx.Done()
 	if err := app.ShutdownWithTimeout(5 * time.Second); err != nil {
 		log.Printf("shutdown error: %v", err)
+	}
+}
+
+func marketDataStatus(cfg config.Config) string {
+	switch {
+	case cfg.KRXAuthKey != "":
+		return "공식 KRX Open API로 일별 종가를 DB에 누적 중입니다. 뉴스/이슈는 10분 캐시로 빠르게 갱신됩니다."
+	case cfg.PublicDataServiceKey != "":
+		return "공공데이터포털 금융위원회 주식시세정보로 일별 종가를 DB에 누적 중입니다. 뉴스/이슈는 10분 캐시로 빠르게 갱신됩니다."
+	default:
+		return "공식 종가 API 키가 아직 없어 가격 랭킹은 기본 데이터로 표시됩니다. 뉴스/이슈는 실시간 RSS 기반으로 빠르게 갱신됩니다."
 	}
 }

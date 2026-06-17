@@ -107,16 +107,22 @@ limit 30`, code)
 
 func (r *Repository) SectorStrength(ctx context.Context) ([]models.SectorStrength, error) {
 	rows, err := r.db.Query(ctx, `
-with price_marks as (
+with latest_dates as (
+	select stock_code, max(date) as latest_date
+	from prices
+	group by stock_code
+),
+price_marks as (
 	select
 		s.sector,
 		p.stock_code,
-		max(p.close) filter (where p.date = current_date) as close_now,
-		max(p.close) filter (where p.date <= current_date - interval '7 days') as close_1w,
-		max(p.close) filter (where p.date <= current_date - interval '30 days') as close_1m,
-		max(p.close) filter (where p.date <= current_date - interval '90 days') as close_3m
+		max(p.close) filter (where p.date = ld.latest_date) as close_now,
+		max(p.close) filter (where p.date <= ld.latest_date - interval '7 days') as close_1w,
+		max(p.close) filter (where p.date <= ld.latest_date - interval '30 days') as close_1m,
+		max(p.close) filter (where p.date <= ld.latest_date - interval '90 days') as close_3m
 	from stocks s
 	join prices p on p.stock_code = s.code
+	join latest_dates ld on ld.stock_code = p.stock_code
 	group by s.sector, p.stock_code
 ),
 flow as (
@@ -311,9 +317,9 @@ metrics as (
 		lp.current_price * s.shares_outstanding as market_cap,
 		coalesce((lp.current_price * s.shares_outstanding) / nullif(fc.net_income, 0), 0) as per,
 		coalesce((lp.current_price * s.shares_outstanding) / nullif(fc.equity, 0), 0) as pbr,
-		fc.revenue_growth,
-		fc.operating_profit_growth,
-		fc.net_income,
+		coalesce(fc.revenue_growth, 0) as revenue_growth,
+		coalesce(fc.operating_profit_growth, 0) as operating_profit_growth,
+		coalesce(fc.net_income, 0) as net_income,
 		ps.high_52w,
 		coalesce((lp.current_price - ps.high_52w) / nullif(ps.high_52w, 0) * 100, 0) as distance_from_high,
 		coalesce(ps.avg_volume_20 / nullif(ps.avg_volume_prev, 0), 1) as volume_ratio,
@@ -323,7 +329,7 @@ metrics as (
 	from stocks s
 	join latest_price lp on lp.stock_code = s.code
 	join price_stats ps on ps.stock_code = s.code
-	join financial_compare fc on fc.stock_code = s.code
+	left join financial_compare fc on fc.stock_code = s.code
 	left join flow fl on fl.stock_code = s.code
 ),
 scored as (

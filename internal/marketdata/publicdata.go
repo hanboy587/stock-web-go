@@ -29,6 +29,10 @@ func (c *PublicDataClient) Enabled() bool {
 	return c != nil && c.serviceKey != ""
 }
 
+func (c *PublicDataClient) Name() string {
+	return "공공데이터포털 금융위원회 주식시세정보"
+}
+
 func (c *PublicDataClient) FetchDailyPrices(ctx context.Context, date time.Time) ([]models.DailyPrice, error) {
 	if !c.Enabled() {
 		return nil, nil

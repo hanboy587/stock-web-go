@@ -13,40 +13,43 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"stockhunter/internal/cache"
-	"stockhunter/internal/news"
 	"stockhunter/internal/models"
+	"stockhunter/internal/news"
 	"stockhunter/internal/repository"
 )
 
 type Handler struct {
-	repo        *repository.Repository
-	cache       *cache.Client
-	newsClient  *news.Client
-	newsQueries []string
-	funcs       template.FuncMap
+	repo             *repository.Repository
+	cache            *cache.Client
+	newsClient       *news.Client
+	newsQueries      []string
+	marketDataStatus string
+	funcs            template.FuncMap
 }
 
 type ViewData struct {
-	Title      string
-	Active     string
-	Stocks     []models.StockMetric
-	Stock      models.StockMetric
-	Prices     []models.PricePoint
-	Sectors    []string
-	Strengths  []models.SectorStrength
-	News       []models.NewsItem
-	Filters    models.Filters
-	Generated  time.Time
-	Error      string
-	ResultPath string
+	Title            string
+	Active           string
+	Stocks           []models.StockMetric
+	Stock            models.StockMetric
+	Prices           []models.PricePoint
+	Sectors          []string
+	Strengths        []models.SectorStrength
+	News             []models.NewsItem
+	Filters          models.Filters
+	Generated        time.Time
+	Error            string
+	ResultPath        string
+	MarketDataStatus string
 }
 
-func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string) {
+func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string, marketDataStatus string) {
 	h := &Handler{
-		repo:        repo,
-		cache:       cacheClient,
-		newsClient:  newsClient,
-		newsQueries: newsQueries,
+		repo:             repo,
+		cache:            cacheClient,
+		newsClient:       newsClient,
+		newsQueries:      newsQueries,
+		marketDataStatus: marketDataStatus,
 		funcs: template.FuncMap{
 			"krw":        krw,
 			"krwShort":   krwShort,
@@ -80,7 +83,7 @@ func (h *Handler) home(c *fiber.Ctx) error {
 	}
 	newsItems := h.marketNews(ctx, 8)
 	return h.render(c, "home.html", ViewData{
-		Title:     "오늘의 발굴 종목",
+		Title:     "오늘의 시장 이슈",
 		Active:    "home",
 		Stocks:    stocks,
 		News:      newsItems,
@@ -224,6 +227,9 @@ func (h *Handler) stockNews(ctx context.Context, name string, code string, limit
 }
 
 func (h *Handler) render(c *fiber.Ctx, page string, data ViewData) error {
+	if data.MarketDataStatus == "" {
+		data.MarketDataStatus = h.marketDataStatus
+	}
 	tpl, err := template.New("layout.html").Funcs(h.funcs).ParseFiles(
 		"templates/layout.html",
 		"templates/"+page,

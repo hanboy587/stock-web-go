@@ -9,6 +9,7 @@ type Config struct {
 	Port                 string
 	DatabaseURL          string
 	RedisAddr            string
+	KRXAuthKey           string
 	PublicDataServiceKey string
 	NewsQueries          []string
 }
@@ -18,6 +19,7 @@ func Load() Config {
 		Port:                 env("PORT", "8080"),
 		DatabaseURL:          env("DATABASE_URL", "postgres://stockhunter:stockhunter@localhost:5432/stockhunter?sslmode=disable"),
 		RedisAddr:            env("REDIS_ADDR", "localhost:6379"),
+		KRXAuthKey:           env("KRX_AUTH_KEY", ""),
 		PublicDataServiceKey: env("PUBLIC_DATA_SERVICE_KEY", ""),
 		NewsQueries: splitEnv("NEWS_QUERIES", []string{
 			"코스피 OR 코스닥 증시",

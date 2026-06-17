@@ -25,14 +25,14 @@
         <a class="nav-link {{if eq .Active "screener"}}nav-active{{end}}" href="/screener">검색기</a>
         <a class="nav-link {{if eq .Active "rankings"}}nav-active{{end}}" href="/rankings">랭킹</a>
         <a class="nav-link {{if eq .Active "sector"}}nav-active{{end}}" href="/sector">섹터</a>
-        <a class="nav-link {{if eq .Active "news"}}nav-active{{end}}" href="/news">이슈</a>
+        <a class="nav-link {{if eq .Active "news"}}nav-active{{end}}" href="/news">뉴스</a>
       </nav>
     </div>
   </header>
 
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-5 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-      <strong>운영 상태:</strong> 뉴스/이슈 피드는 실시간 RSS로 갱신됩니다. 종가 랭킹은 공공데이터포털 키 연결 전까지 샘플 데이터로 표시됩니다.
+      <strong>운영 상태:</strong> {{.MarketDataStatus}}
     </div>
     {{template "content" .}}
   </main>
