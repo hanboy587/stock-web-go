@@ -1,54 +1,53 @@
 {{define "content"}}
 <section class="mb-6 flex flex-col justify-between gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end">
   <div>
-    <p class="text-sm font-semibold text-slate-500">오늘의 발굴 종목</p>
-    <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">점수 상위 종목</h1>
+    <p class="text-sm font-semibold text-slate-500">Market Intelligence</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">시장 이슈와 종목 발굴</h1>
   </div>
   <div class="text-sm text-slate-500">갱신 {{.Generated.Format "15:04:05"}}</div>
 </section>
 
-<section class="grid gap-4 md:grid-cols-4">
-  {{range $i, $stock := .Stocks}}
-    {{if lt $i 4}}
-      <a href="/stock/{{$stock.Code}}" class="rounded border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-400">
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <p class="text-sm text-slate-500">{{$stock.Code}} · {{$stock.Sector}}</p>
-            <h2 class="mt-1 text-lg font-bold">{{$stock.Name}}</h2>
+<section class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_440px]">
+  <section class="rounded border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <h2 class="text-base font-bold">실시간 시장 이슈</h2>
+      <a class="text-sm font-semibold text-slate-700 hover:text-slate-950" href="/news">더 보기</a>
+    </div>
+    <div class="grid divide-y divide-slate-100 md:grid-cols-2 md:divide-x md:divide-y-0">
+      {{range .News}}
+        <a class="block p-4 hover:bg-slate-50" href="{{.Link}}" target="_blank" rel="noreferrer">
+          <p class="line-clamp-2 text-sm font-bold leading-5 text-slate-950">{{.Title}}</p>
+          <p class="mt-2 text-xs text-slate-500">{{.Source}} · {{timeAgo .PublishedAt}}</p>
+        </a>
+      {{else}}
+        <p class="p-8 text-center text-sm text-slate-500">뉴스를 불러오지 못했습니다.</p>
+      {{end}}
+    </div>
+  </section>
+
+  <aside class="rounded border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <h2 class="text-base font-bold">샘플 종가 랭킹</h2>
+      <a class="text-sm font-semibold text-slate-700 hover:text-slate-950" href="/rankings">전체 보기</a>
+    </div>
+    <div class="divide-y divide-slate-100">
+      {{range $i, $stock := .Stocks}}
+        {{if lt $i 6}}
+        <a class="block px-4 py-3 hover:bg-slate-50" href="/stock/{{$stock.Code}}">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-bold">{{$stock.Name}}</p>
+              <p class="mt-0.5 text-xs text-slate-500">{{$stock.Code}} · {{$stock.Sector}} · {{krw $stock.CurrentPrice}}</p>
+            </div>
+            <span class="rounded bg-slate-950 px-2 py-1 text-xs font-black text-white">{{printf "%.0f" $stock.TotalScore}}</span>
           </div>
-          <span class="rounded bg-slate-950 px-2 py-1 text-sm font-bold text-white">{{printf "%.0f" $stock.TotalScore}}</span>
-        </div>
-        <div class="mt-4 h-2 rounded bg-slate-100">
-          <div class="h-2 rounded {{scoreTone $stock.TotalScore}}" style="width: {{scoreWidth $stock.TotalScore}}"></div>
-        </div>
-        <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <dt class="text-slate-500">현재가</dt>
-            <dd class="font-semibold">{{krw $stock.CurrentPrice}}</dd>
-          </div>
-          <div>
-            <dt class="text-slate-500">시총</dt>
-            <dd class="font-semibold">{{krwShort $stock.MarketCap}}</dd>
-          </div>
-          <div>
-            <dt class="text-slate-500">성장률</dt>
-            <dd class="font-semibold">{{percent $stock.RevenueGrowth}}</dd>
-          </div>
-          <div>
-            <dt class="text-slate-500">수급 20일</dt>
-            <dd class="font-semibold">{{krwShort $stock.InstitutionNet20}}</dd>
-          </div>
-        </dl>
-      </a>
-    {{end}}
-  {{end}}
+        </a>
+        {{end}}
+      {{else}}
+        <p class="px-4 py-8 text-center text-sm text-slate-500">랭킹 데이터가 없습니다.</p>
+      {{end}}
+    </div>
+  </aside>
 </section>
 
-<section class="mt-6 rounded border border-slate-200 bg-white shadow-sm">
-  <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-    <h2 class="text-base font-bold">랭킹 요약</h2>
-    <a class="text-sm font-semibold text-slate-700 hover:text-slate-950" href="/rankings">전체 보기</a>
-  </div>
-  {{template "stock_table" .}}
-</section>
 {{end}}

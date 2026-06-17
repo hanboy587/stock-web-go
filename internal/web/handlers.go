@@ -13,14 +13,17 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"stockhunter/internal/cache"
+	"stockhunter/internal/news"
 	"stockhunter/internal/models"
 	"stockhunter/internal/repository"
 )
 
 type Handler struct {
-	repo  *repository.Repository
-	cache *cache.Client
-	funcs template.FuncMap
+	repo        *repository.Repository
+	cache       *cache.Client
+	newsClient  *news.Client
+	newsQueries []string
+	funcs       template.FuncMap
 }
 
 type ViewData struct {
@@ -31,16 +34,19 @@ type ViewData struct {
 	Prices     []models.PricePoint
 	Sectors    []string
 	Strengths  []models.SectorStrength
+	News       []models.NewsItem
 	Filters    models.Filters
 	Generated  time.Time
 	Error      string
 	ResultPath string
 }
 
-func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client) {
+func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string) {
 	h := &Handler{
-		repo:  repo,
-		cache: cacheClient,
+		repo:        repo,
+		cache:       cacheClient,
+		newsClient:  newsClient,
+		newsQueries: newsQueries,
 		funcs: template.FuncMap{
 			"krw":        krw,
 			"krwShort":   krwShort,
@@ -48,6 +54,7 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 			"percent":    percent,
 			"scoreWidth": scoreWidth,
 			"scoreTone":  scoreTone,
+			"timeAgo":    timeAgo,
 			"date":       func(t time.Time) string { return t.Format("2006-01-02") },
 		},
 	}
@@ -56,6 +63,7 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 	app.Get("/screener", h.screener)
 	app.Get("/rankings", h.rankings)
 	app.Get("/sector", h.sector)
+	app.Get("/news", h.news)
 	app.Get("/stock/:code", h.stock)
 }
 
@@ -70,10 +78,12 @@ func (h *Handler) home(c *fiber.Ctx) error {
 		}
 		h.cache.SetJSON(ctx, "home:rankings", stocks, 5*time.Minute)
 	}
+	newsItems := h.marketNews(ctx, 8)
 	return h.render(c, "home.html", ViewData{
 		Title:     "오늘의 발굴 종목",
 		Active:    "home",
 		Stocks:    stocks,
+		News:      newsItems,
 		Generated: time.Now(),
 	})
 }
@@ -144,6 +154,16 @@ func (h *Handler) sector(c *fiber.Ctx) error {
 	})
 }
 
+func (h *Handler) news(c *fiber.Ctx) error {
+	ctx := requestContext(c)
+	return h.render(c, "news.html", ViewData{
+		Title:     "시장 이슈",
+		Active:    "news",
+		News:      h.marketNews(ctx, 36),
+		Generated: time.Now(),
+	})
+}
+
 func (h *Handler) stock(c *fiber.Ctx) error {
 	ctx := requestContext(c)
 	stock, prices, err := h.repo.FindStock(ctx, strings.ToUpper(c.Params("code")))
@@ -159,8 +179,48 @@ func (h *Handler) stock(c *fiber.Ctx) error {
 		Active:    "stock",
 		Stock:     stock,
 		Prices:    prices,
+		News:      h.stockNews(ctx, stock.Name, stock.Code, 8),
 		Generated: time.Now(),
 	})
+}
+
+func (h *Handler) marketNews(ctx context.Context, limit int) []models.NewsItem {
+	var items []models.NewsItem
+	if h.cache.GetJSON(ctx, "news:market", &items) && len(items) > 0 {
+		if limit > 0 && len(items) > limit {
+			return items[:limit]
+		}
+		return items
+	}
+	items, err := h.newsClient.FetchMarketNews(ctx, h.newsQueries, 48)
+	if err != nil {
+		return nil
+	}
+	h.cache.SetJSON(ctx, "news:market", items, 10*time.Minute)
+	if limit > 0 && len(items) > limit {
+		return items[:limit]
+	}
+	return items
+}
+
+func (h *Handler) stockNews(ctx context.Context, name string, code string, limit int) []models.NewsItem {
+	key := "news:stock:" + code
+	var items []models.NewsItem
+	if h.cache.GetJSON(ctx, key, &items) && len(items) > 0 {
+		if limit > 0 && len(items) > limit {
+			return items[:limit]
+		}
+		return items
+	}
+	items, err := h.newsClient.FetchStockNews(ctx, name, code, 16)
+	if err != nil {
+		return nil
+	}
+	h.cache.SetJSON(ctx, key, items, 10*time.Minute)
+	if limit > 0 && len(items) > limit {
+		return items[:limit]
+	}
+	return items
 }
 
 func (h *Handler) render(c *fiber.Ctx, page string, data ViewData) error {
@@ -252,8 +312,20 @@ func krwShort(value float64) string {
 	}
 }
 
-func number(value float64) string {
-	rounded := int64(math.Round(value))
+func number(value any) string {
+	var rounded int64
+	switch v := value.(type) {
+	case int:
+		rounded = int64(v)
+	case int64:
+		rounded = v
+	case float64:
+		rounded = int64(math.Round(v))
+	case float32:
+		rounded = int64(math.Round(float64(v)))
+	default:
+		return fmt.Sprint(value)
+	}
 	sign := ""
 	if rounded < 0 {
 		sign = "-"
@@ -278,6 +350,23 @@ func number(value float64) string {
 
 func percent(value float64) string {
 	return fmt.Sprintf("%.1f%%", value)
+}
+
+func timeAgo(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	delta := time.Since(value)
+	switch {
+	case delta < time.Minute:
+		return "방금 전"
+	case delta < time.Hour:
+		return fmt.Sprintf("%d분 전", int(delta.Minutes()))
+	case delta < 24*time.Hour:
+		return fmt.Sprintf("%d시간 전", int(delta.Hours()))
+	default:
+		return value.Format("01-02 15:04")
+	}
 }
 
 func scoreWidth(score float64) string {

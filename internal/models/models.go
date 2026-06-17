@@ -53,3 +53,25 @@ type PricePoint struct {
 	Close  float64
 	Volume int64
 }
+
+type NewsItem struct {
+	Title       string
+	Link        string
+	Source      string
+	PublishedAt time.Time
+	Query       string
+}
+
+type DailyPrice struct {
+	Code         string
+	Name         string
+	Market       string
+	Date         time.Time
+	Open         float64
+	High         float64
+	Low          float64
+	Close        float64
+	Volume       int64
+	ListedShares float64
+	MarketCap    float64
+}

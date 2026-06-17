@@ -14,6 +14,7 @@ import (
 	"stockhunter/internal/cache"
 	"stockhunter/internal/config"
 	"stockhunter/internal/database"
+	"stockhunter/internal/news"
 	"stockhunter/internal/repository"
 	"stockhunter/internal/web"
 )
@@ -33,7 +34,7 @@ func main() {
 	defer cacheClient.Close()
 
 	repo := repository.New(pool)
-	scheduler := batch.Start(repo, cacheClient)
+	scheduler := batch.Start(repo, cacheClient, cfg.PublicDataServiceKey)
 	defer scheduler.Stop()
 
 	app := fiber.New(fiber.Config{
@@ -49,7 +50,7 @@ func main() {
 	})
 
 	app.Static("/static", "./static")
-	web.Register(app, repo, cacheClient)
+	web.Register(app, repo, cacheClient, news.New(), cfg.NewsQueries)
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {

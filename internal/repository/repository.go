@@ -153,6 +153,59 @@ order by return_1m desc, flow_20 desc`)
 	return sectors, rows.Err()
 }
 
+func (r *Repository) UpsertDailyPrices(ctx context.Context, prices []models.DailyPrice) error {
+	if len(prices) == 0 {
+		return nil
+	}
+
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, price := range prices {
+		if price.Code == "" || price.Close <= 0 {
+			continue
+		}
+		shares := price.ListedShares
+		if shares <= 0 && price.MarketCap > 0 {
+			shares = price.MarketCap / price.Close
+		}
+		if shares <= 0 {
+			shares = 1
+		}
+
+		_, err := tx.Exec(ctx, `
+insert into stocks (code, name, market, sector, shares_outstanding)
+values ($1, $2, $3, '미분류', $4)
+on conflict (code) do update set
+	name = excluded.name,
+	market = excluded.market,
+	shares_outstanding = excluded.shares_outstanding`,
+			price.Code, price.Name, price.Market, shares)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.Exec(ctx, `
+insert into prices (stock_code, date, open, high, low, close, volume)
+values ($1, $2, $3, $4, $5, $6, $7)
+on conflict (stock_code, date) do update set
+	open = excluded.open,
+	high = excluded.high,
+	low = excluded.low,
+	close = excluded.close,
+	volume = excluded.volume`,
+			price.Code, price.Date, price.Open, price.High, price.Low, price.Close, price.Volume)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 func scanMetrics(rows pgx.Rows) ([]models.StockMetric, error) {
 	var metrics []models.StockMetric
 	for rows.Next() {

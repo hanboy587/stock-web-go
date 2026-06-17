@@ -17,7 +17,7 @@
   </section>
 
   <section class="grid gap-4 md:grid-cols-4">
-    <div class="metric"><span>현재가</span><strong>{{krw .Stock.CurrentPrice}}</strong></div>
+    <div class="metric"><span>최근 종가</span><strong>{{krw .Stock.CurrentPrice}}</strong></div>
     <div class="metric"><span>시가총액</span><strong>{{krwShort .Stock.MarketCap}}</strong></div>
     <div class="metric"><span>PER / PBR</span><strong>{{printf "%.1f" .Stock.PER}} / {{printf "%.1f" .Stock.PBR}}</strong></div>
     <div class="metric"><span>52주 고점 대비</span><strong>{{percent .Stock.DistanceFromHigh}}</strong></div>
@@ -25,7 +25,7 @@
 
   <section class="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
     <div class="rounded border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 class="text-base font-bold">최근 가격</h2>
+      <h2 class="text-base font-bold">최근 일별 종가</h2>
       <div class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[520px] text-left text-sm">
           <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
@@ -48,6 +48,23 @@
         <div><div class="score-head"><span>가격 위치</span><b>{{printf "%.1f" .Stock.PriceScore}}</b></div><div class="bar"><i class="bg-amber-500" style="width: {{scoreWidth .Stock.PriceScore}}"></i></div></div>
         <div><div class="score-head"><span>실적 안정성</span><b>{{printf "%.1f" .Stock.StabilityScore}}</b></div><div class="bar"><i class="bg-slate-500" style="width: {{scoreWidth .Stock.StabilityScore}}"></i></div></div>
       </div>
+    </div>
+  </section>
+
+  <section class="mt-5 rounded border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <h2 class="text-base font-bold">관련 뉴스</h2>
+      <a class="text-sm font-semibold text-slate-700 hover:text-slate-950" href="/news">시장 이슈 보기</a>
+    </div>
+    <div class="grid gap-0 divide-y divide-slate-100 md:grid-cols-2 md:divide-x md:divide-y-0">
+      {{range .News}}
+        <a class="block p-4 hover:bg-slate-50" href="{{.Link}}" target="_blank" rel="noreferrer">
+          <p class="text-sm font-bold leading-5">{{.Title}}</p>
+          <p class="mt-2 text-xs text-slate-500">{{.Source}} · {{timeAgo .PublishedAt}}</p>
+        </a>
+      {{else}}
+        <p class="p-4 text-sm text-slate-500">관련 뉴스를 불러오지 못했습니다.</p>
+      {{end}}
     </div>
   </section>
 {{end}}
