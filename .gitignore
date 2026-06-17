@@ -1,0 +1,8 @@
+.env
+.DS_Store
+*.exe
+*.test
+bin/
+dist/
+tmp/
+vendor/

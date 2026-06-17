@@ -1,0 +1,48 @@
+{{define "stock_table"}}
+<div class="overflow-x-auto">
+  <table class="w-full min-w-[940px] text-left text-sm">
+    <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+      <tr>
+        <th class="px-4 py-3">종목</th>
+        <th class="px-4 py-3">점수</th>
+        <th class="px-4 py-3">현재가</th>
+        <th class="px-4 py-3">시총</th>
+        <th class="px-4 py-3">PER</th>
+        <th class="px-4 py-3">PBR</th>
+        <th class="px-4 py-3">매출 성장</th>
+        <th class="px-4 py-3">영업 성장</th>
+        <th class="px-4 py-3">고점 대비</th>
+        <th class="px-4 py-3">기관 20일</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {{range .Stocks}}
+        <tr class="hover:bg-slate-50">
+          <td class="px-4 py-3">
+            <a class="font-bold text-slate-950 hover:underline" href="/stock/{{.Code}}">{{.Name}}</a>
+            <div class="mt-0.5 text-xs text-slate-500">{{.Code}} · {{.Sector}}</div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <span class="w-10 font-black">{{printf "%.0f" .TotalScore}}</span>
+              <span class="h-2 w-20 rounded bg-slate-100"><i class="block h-2 rounded {{scoreTone .TotalScore}}" style="width: {{scoreWidth .TotalScore}}"></i></span>
+            </div>
+          </td>
+          <td class="px-4 py-3 font-semibold">{{krw .CurrentPrice}}</td>
+          <td class="px-4 py-3">{{krwShort .MarketCap}}</td>
+          <td class="px-4 py-3">{{printf "%.1f" .PER}}</td>
+          <td class="px-4 py-3">{{printf "%.1f" .PBR}}</td>
+          <td class="px-4 py-3 {{if ge .RevenueGrowth 0.0}}text-emerald-700{{else}}text-rose-700{{end}}">{{percent .RevenueGrowth}}</td>
+          <td class="px-4 py-3 {{if ge .OperatingProfitGrowth 0.0}}text-emerald-700{{else}}text-rose-700{{end}}">{{percent .OperatingProfitGrowth}}</td>
+          <td class="px-4 py-3">{{percent .DistanceFromHigh}}</td>
+          <td class="px-4 py-3">{{krwShort .InstitutionNet20}}</td>
+        </tr>
+      {{else}}
+        <tr>
+          <td class="px-4 py-8 text-center text-slate-500" colspan="10">조건에 맞는 종목이 없습니다.</td>
+        </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}

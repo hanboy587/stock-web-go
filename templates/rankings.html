@@ -1,0 +1,13 @@
+{{define "content"}}
+<section class="mb-6 flex flex-col justify-between gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end">
+  <div>
+    <p class="text-sm font-semibold text-slate-500">Ranking</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">종합 랭킹</h1>
+  </div>
+  <div class="text-sm text-slate-500">갱신 {{.Generated.Format "15:04:05"}}</div>
+</section>
+
+<section class="rounded border border-slate-200 bg-white shadow-sm">
+  {{template "stock_table" .}}
+</section>
+{{end}}

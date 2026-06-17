@@ -1,0 +1,71 @@
+{{define "content"}}
+<section class="mb-6 flex flex-col justify-between gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end">
+  <div>
+    <p class="text-sm font-semibold text-slate-500">Screener</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">종목 검색기</h1>
+  </div>
+  <div class="text-sm text-slate-500">결과 {{len .Stocks}}개</div>
+</section>
+
+<section class="grid gap-5 lg:grid-cols-[320px_1fr]">
+  <form class="rounded border border-slate-200 bg-white p-4 shadow-sm"
+        hx-get="/screener"
+        hx-target="#results"
+        hx-push-url="true">
+    <div class="space-y-4">
+      <label class="block">
+        <span class="field-label">섹터</span>
+        <select class="field" name="sector">
+          <option value="">전체</option>
+          {{range .Sectors}}
+            <option value="{{.}}" {{if eq $.Filters.Sector .}}selected{{end}}>{{.}}</option>
+          {{end}}
+        </select>
+      </label>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="field-label">시총 최소</span>
+          <input class="field" type="number" name="min_market_cap" value="{{if .Filters.MinMarketCap}}{{printf "%.0f" .Filters.MinMarketCap}}{{end}}">
+        </label>
+        <label class="block">
+          <span class="field-label">시총 최대</span>
+          <input class="field" type="number" name="max_market_cap" value="{{if .Filters.MaxMarketCap}}{{printf "%.0f" .Filters.MaxMarketCap}}{{end}}">
+        </label>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="field-label">매출 성장률</span>
+          <input class="field" type="number" name="min_revenue_growth" value="{{if .Filters.MinRevenueGrowth}}{{printf "%.0f" .Filters.MinRevenueGrowth}}{{end}}">
+        </label>
+        <label class="block">
+          <span class="field-label">영업이익 성장률</span>
+          <input class="field" type="number" name="min_operating_growth" value="{{if .Filters.MinOperatingGrowth}}{{printf "%.0f" .Filters.MinOperatingGrowth}}{{end}}">
+        </label>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <label class="block">
+          <span class="field-label">PER 이하</span>
+          <input class="field" type="number" step="0.1" name="max_per" value="{{if .Filters.MaxPER}}{{printf "%.1f" .Filters.MaxPER}}{{end}}">
+        </label>
+        <label class="block">
+          <span class="field-label">PBR 이하</span>
+          <input class="field" type="number" step="0.1" name="max_pbr" value="{{if .Filters.MaxPBR}}{{printf "%.1f" .Filters.MaxPBR}}{{end}}">
+        </label>
+      </div>
+      <label class="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm font-semibold">
+        <span>신고가 -10% 이내</span>
+        <input class="h-4 w-4 accent-slate-950" type="checkbox" name="near_high" {{if .Filters.NearHighOnly}}checked{{end}}>
+      </label>
+      <label class="flex items-center justify-between rounded border border-slate-200 px-3 py-2 text-sm font-semibold">
+        <span>기관 순매수</span>
+        <input class="h-4 w-4 accent-slate-950" type="checkbox" name="institution_only" {{if .Filters.InstitutionOnly}}checked{{end}}>
+      </label>
+      <button class="w-full rounded bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800" type="submit">검색</button>
+    </div>
+  </form>
+
+  <div id="results" class="rounded border border-slate-200 bg-white shadow-sm">
+    {{template "stock_table" .}}
+  </div>
+</section>
+{{end}}

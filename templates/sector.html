@@ -1,0 +1,38 @@
+{{define "content"}}
+<section class="mb-6 flex flex-col justify-between gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end">
+  <div>
+    <p class="text-sm font-semibold text-slate-500">Sector</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">섹터 분석</h1>
+  </div>
+  <div class="text-sm text-slate-500">갱신 {{.Generated.Format "15:04:05"}}</div>
+</section>
+
+<section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+  {{range .Strengths}}
+    <article class="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="flex items-center justify-between">
+        <h2 class="text-xl font-bold">{{.Sector}}</h2>
+        <span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">{{.StockCount}}종목</span>
+      </div>
+      <dl class="mt-5 grid grid-cols-3 gap-3 text-sm">
+        <div>
+          <dt class="text-slate-500">1주</dt>
+          <dd class="mt-1 text-lg font-bold {{if ge .Return1Week 0.0}}text-emerald-700{{else}}text-rose-700{{end}}">{{percent .Return1Week}}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">1개월</dt>
+          <dd class="mt-1 text-lg font-bold {{if ge .Return1Month 0.0}}text-emerald-700{{else}}text-rose-700{{end}}">{{percent .Return1Month}}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500">3개월</dt>
+          <dd class="mt-1 text-lg font-bold {{if ge .Return3Month 0.0}}text-emerald-700{{else}}text-rose-700{{end}}">{{percent .Return3Month}}</dd>
+        </div>
+      </dl>
+      <div class="mt-5 border-t border-slate-100 pt-4">
+        <p class="text-sm text-slate-500">20일 수급</p>
+        <p class="mt-1 text-lg font-bold">{{krwShort .Flow20}}</p>
+      </div>
+    </article>
+  {{end}}
+</section>
+{{end}}

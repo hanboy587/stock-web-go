@@ -1,0 +1,54 @@
+{{define "content"}}
+{{if .Error}}
+  <section class="rounded border border-slate-200 bg-white p-8 text-center shadow-sm">
+    <h1 class="text-2xl font-bold">{{.Error}}</h1>
+    <a class="mt-4 inline-flex rounded bg-slate-950 px-4 py-2 text-sm font-bold text-white" href="/rankings">랭킹으로 이동</a>
+  </section>
+{{else}}
+  <section class="mb-6 flex flex-col justify-between gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end">
+    <div>
+      <p class="text-sm font-semibold text-slate-500">{{.Stock.Code}} · {{.Stock.Market}} · {{.Stock.Sector}}</p>
+      <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">{{.Stock.Name}}</h1>
+    </div>
+    <div class="rounded bg-slate-950 px-4 py-2 text-center text-white">
+      <p class="text-xs font-semibold text-slate-300">종합 점수</p>
+      <p class="text-2xl font-black">{{printf "%.0f" .Stock.TotalScore}}</p>
+    </div>
+  </section>
+
+  <section class="grid gap-4 md:grid-cols-4">
+    <div class="metric"><span>현재가</span><strong>{{krw .Stock.CurrentPrice}}</strong></div>
+    <div class="metric"><span>시가총액</span><strong>{{krwShort .Stock.MarketCap}}</strong></div>
+    <div class="metric"><span>PER / PBR</span><strong>{{printf "%.1f" .Stock.PER}} / {{printf "%.1f" .Stock.PBR}}</strong></div>
+    <div class="metric"><span>52주 고점 대비</span><strong>{{percent .Stock.DistanceFromHigh}}</strong></div>
+  </section>
+
+  <section class="mt-5 grid gap-5 lg:grid-cols-[1fr_360px]">
+    <div class="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 class="text-base font-bold">최근 가격</h2>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[520px] text-left text-sm">
+          <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+            <tr><th class="py-2">일자</th><th>종가</th><th>거래량</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {{range .Prices}}
+              <tr><td class="py-2">{{date .Date}}</td><td class="font-semibold">{{krw .Close}}</td><td>{{number .Volume}}</td></tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rounded border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 class="text-base font-bold">점수 구성</h2>
+      <div class="mt-4 space-y-4">
+        <div><div class="score-head"><span>성장성</span><b>{{printf "%.1f" .Stock.GrowthScore}}</b></div><div class="bar"><i class="bg-emerald-500" style="width: {{scoreWidth .Stock.GrowthScore}}"></i></div></div>
+        <div><div class="score-head"><span>수급</span><b>{{printf "%.1f" .Stock.FlowScore}}</b></div><div class="bar"><i class="bg-sky-500" style="width: {{scoreWidth .Stock.FlowScore}}"></i></div></div>
+        <div><div class="score-head"><span>가격 위치</span><b>{{printf "%.1f" .Stock.PriceScore}}</b></div><div class="bar"><i class="bg-amber-500" style="width: {{scoreWidth .Stock.PriceScore}}"></i></div></div>
+        <div><div class="score-head"><span>실적 안정성</span><b>{{printf "%.1f" .Stock.StabilityScore}}</b></div><div class="bar"><i class="bg-slate-500" style="width: {{scoreWidth .Stock.StabilityScore}}"></i></div></div>
+      </div>
+    </div>
+  </section>
+{{end}}
+{{end}}

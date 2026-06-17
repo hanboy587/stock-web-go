@@ -1,0 +1,78 @@
+.nav-link {
+  border-radius: 6px;
+  color: rgb(71 85 105);
+  display: inline-flex;
+  padding: 0.5rem 0.75rem;
+}
+
+.nav-link:hover {
+  color: rgb(15 23 42);
+}
+
+.nav-active {
+  background: white;
+  color: rgb(15 23 42);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+}
+
+.field-label {
+  color: rgb(100 116 139);
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.field {
+  border: 1px solid rgb(203 213 225);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  padding: 0.65rem 0.7rem;
+  width: 100%;
+}
+
+.field:focus {
+  border-color: rgb(15 23 42);
+  outline: 2px solid rgb(15 23 42 / 0.12);
+}
+
+.metric {
+  background: white;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+  padding: 1rem;
+}
+
+.metric span {
+  color: rgb(100 116 139);
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.metric strong {
+  display: block;
+  font-size: 1.25rem;
+  margin-top: 0.3rem;
+}
+
+.score-head {
+  align-items: center;
+  display: flex;
+  font-size: 0.875rem;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.bar {
+  background: rgb(241 245 249);
+  border-radius: 999px;
+  height: 0.55rem;
+  overflow: hidden;
+}
+
+.bar i {
+  display: block;
+  height: 100%;
+}
