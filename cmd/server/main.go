@@ -56,7 +56,7 @@ func main() {
 	app.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 
 	app.Static("/static", "./static")
-	web.Register(app, repo, cacheClient, news.New(), cfg.NewsQueries, marketDataStatus(cfg))
+	web.Register(app, repo, cacheClient, news.New(), cfg.NewsQueries, marketDataConfig(cfg))
 
 	go func() {
 		if err := app.Listen(":" + cfg.Port); err != nil {
@@ -71,13 +71,25 @@ func main() {
 	}
 }
 
-func marketDataStatus(cfg config.Config) string {
+func marketDataConfig(cfg config.Config) web.MarketDataConfig {
 	switch {
 	case cfg.KRXAuthKey != "":
-		return "공식 KRX Open API로 일별 종가를 DB에 누적 중입니다. 뉴스/이슈는 10분 캐시로 빠르게 갱신됩니다."
+		return web.MarketDataConfig{
+			Provider:     "krx",
+			Status:       "공식 KRX Open API로 일별 종가를 DB에 누적 중입니다. 뉴스/이슈는 10분 캐시로 빠르게 갱신됩니다.",
+			BackfillDays: cfg.DailyCloseBackfillDays,
+		}
 	case cfg.PublicDataServiceKey != "":
-		return "공공데이터포털 금융위원회 주식시세정보로 일별 종가를 DB에 누적 중입니다. 뉴스/이슈는 10분 캐시로 빠르게 갱신됩니다."
+		return web.MarketDataConfig{
+			Provider:     "public_data",
+			Status:       "공공데이터포털 금융위원회 주식시세정보로 일별 종가를 DB에 누적 중입니다. 뉴스/이슈는 10분 캐시로 빠르게 갱신됩니다.",
+			BackfillDays: cfg.DailyCloseBackfillDays,
+		}
 	default:
-		return "공식 종가 API 키가 아직 없어 가격 랭킹은 기본 데이터로 표시됩니다. 뉴스/이슈는 실시간 RSS 기반으로 빠르게 갱신됩니다."
+		return web.MarketDataConfig{
+			Provider:     "none",
+			Status:       "공식 종가 API 키가 아직 없어 가격 랭킹은 기본 데이터로 표시됩니다. 뉴스/이슈는 실시간 RSS 기반으로 빠르게 갱신됩니다.",
+			BackfillDays: cfg.DailyCloseBackfillDays,
+		}
 	}
 }

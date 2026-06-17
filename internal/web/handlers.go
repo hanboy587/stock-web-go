@@ -23,8 +23,14 @@ type Handler struct {
 	cache            *cache.Client
 	newsClient       *news.Client
 	newsQueries      []string
-	marketDataStatus string
+	marketDataConfig MarketDataConfig
 	funcs            template.FuncMap
+}
+
+type MarketDataConfig struct {
+	Provider     string
+	Status       string
+	BackfillDays int
 }
 
 type ViewData struct {
@@ -39,18 +45,18 @@ type ViewData struct {
 	Filters          models.Filters
 	Generated        time.Time
 	Error            string
-	ResultPath        string
+	ResultPath       string
 	MarketDataStatus string
 	PriceStatus      models.PriceStatus
 }
 
-func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string, marketDataStatus string) {
+func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string, marketDataConfig MarketDataConfig) {
 	h := &Handler{
 		repo:             repo,
 		cache:            cacheClient,
 		newsClient:       newsClient,
 		newsQueries:      newsQueries,
-		marketDataStatus: marketDataStatus,
+		marketDataConfig: marketDataConfig,
 		funcs: template.FuncMap{
 			"krw":        krw,
 			"krwShort":   krwShort,
@@ -70,6 +76,7 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 	app.Get("/news", h.news)
 	app.Get("/stock/:code", h.stock)
 	app.Get("/healthz", h.healthz)
+	app.Get("/api/status", h.apiStatus)
 }
 
 func (h *Handler) healthz(c *fiber.Ctx) error {
@@ -93,6 +100,33 @@ func (h *Handler) healthz(c *fiber.Ctx) error {
 	return c.Status(status).JSON(fiber.Map{
 		"ok":        status == fiber.StatusOK,
 		"checks":    checks,
+		"generated": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *Handler) apiStatus(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(requestContext(c), 2*time.Second)
+	defer cancel()
+
+	priceStatus, err := h.repo.PriceStatus(ctx)
+	if err != nil {
+		return err
+	}
+	return c.JSON(fiber.Map{
+		"market_data": fiber.Map{
+			"provider":      h.marketDataConfig.Provider,
+			"status":        h.marketDataConfig.Status,
+			"backfill_days": h.marketDataConfig.BackfillDays,
+		},
+		"prices": fiber.Map{
+			"latest_date": priceStatus.LatestDate.Format("2006-01-02"),
+			"stock_count": priceStatus.StockCount,
+			"price_count": priceStatus.PriceCount,
+		},
+		"news": fiber.Map{
+			"cache_seconds": 600,
+			"query_count":   len(h.newsQueries),
+		},
 		"generated": time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -255,10 +289,10 @@ func (h *Handler) stockNews(ctx context.Context, name string, code string, limit
 
 func (h *Handler) render(c *fiber.Ctx, page string, data ViewData) error {
 	if data.MarketDataStatus == "" {
-		data.MarketDataStatus = h.marketDataStatus
+		data.MarketDataStatus = h.marketDataConfig.Status
 		if status, err := h.repo.PriceStatus(requestContext(c)); err == nil {
 			data.PriceStatus = status
-			data.MarketDataStatus = withPriceStatus(h.marketDataStatus, status)
+			data.MarketDataStatus = withPriceStatus(h.marketDataConfig.Status, status)
 		}
 	}
 	tpl, err := template.New("layout.html").Funcs(h.funcs).ParseFiles(
@@ -299,7 +333,7 @@ func (h *Handler) renderPartial(c *fiber.Ctx, file string, name string, data Vie
 
 func parseFilters(c *fiber.Ctx) models.Filters {
 	return models.Filters{
-		Query:               strings.TrimSpace(c.Query("q")),
+		Query:              strings.TrimSpace(c.Query("q")),
 		Sector:             c.Query("sector"),
 		MinMarketCap:       parseFloat(c.Query("min_market_cap")),
 		MaxMarketCap:       parseFloat(c.Query("max_market_cap")),
