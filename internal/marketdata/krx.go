@@ -84,8 +84,12 @@ func (c *KRXClient) fetchMarket(ctx context.Context, endpoint string, fallbackMa
 		return nil, err
 	}
 
-	prices := make([]models.DailyPrice, 0, len(payload.Rows))
-	for _, row := range payload.Rows {
+	return parseKRXRows(payload.Rows, fallbackMarket), nil
+}
+
+func parseKRXRows(rows []map[string]any, fallbackMarket string) []models.DailyPrice {
+	prices := make([]models.DailyPrice, 0, len(rows))
+	for _, row := range rows {
 		baseDate := pick(row, "BAS_DD", "basDd")
 		parsedDate, err := parseKRXDate(baseDate)
 		if err != nil {
@@ -117,7 +121,7 @@ func (c *KRXClient) fetchMarket(ctx context.Context, endpoint string, fallbackMa
 			MarketCap:    marketCap,
 		})
 	}
-	return prices, nil
+	return prices
 }
 
 type krxResponse struct {

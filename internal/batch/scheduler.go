@@ -19,7 +19,7 @@ type dailyPriceProvider interface {
 	FetchDailyPrices(context.Context, time.Time) ([]models.DailyPrice, error)
 }
 
-func Start(repo *repository.Repository, cacheClient *cache.Client, krxAuthKey string, publicDataKey string) *cron.Cron {
+func Start(repo *repository.Repository, cacheClient *cache.Client, krxAuthKey string, publicDataKey string, backfillDays int) *cron.Cron {
 	c := cron.New()
 	_, err := c.AddFunc("@every 15m", func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -52,7 +52,16 @@ func Start(repo *repository.Repository, cacheClient *cache.Client, krxAuthKey st
 		}
 		go func() {
 			time.Sleep(3 * time.Second)
-			run()
+			timeout := time.Duration(backfillDays) * 45 * time.Second
+			if timeout < 150*time.Second {
+				timeout = 150 * time.Second
+			}
+			if timeout > 15*time.Minute {
+				timeout = 15 * time.Minute
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+			runDailyCloseBackfill(ctx, repo, cacheClient, provider, backfillDays)
 		}()
 		log.Printf("daily close updater enabled: %s", provider.Name())
 	} else {
@@ -70,6 +79,50 @@ func firstEnabledProvider(providers ...dailyPriceProvider) dailyPriceProvider {
 		}
 	}
 	return nil
+}
+
+func runDailyCloseBackfill(ctx context.Context, repo *repository.Repository, cacheClient *cache.Client, provider dailyPriceProvider, days int) {
+	if days <= 1 {
+		runDailyCloseUpdate(ctx, repo, cacheClient, provider)
+		return
+	}
+
+	now := time.Now().In(time.FixedZone("KST", 9*60*60))
+	var updatedDates int
+	var updatedRows int
+	var lastErr error
+	for dayOffset := 0; dayOffset < days; dayOffset++ {
+		if ctx.Err() != nil {
+			lastErr = ctx.Err()
+			break
+		}
+		date := now.AddDate(0, 0, -dayOffset)
+		prices, err := provider.FetchDailyPrices(ctx, date)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if len(prices) == 0 {
+			continue
+		}
+		if err := repo.UpsertDailyPrices(ctx, prices); err != nil {
+			log.Printf("daily close backfill upsert failed for %s: %v", date.Format("2006-01-02"), err)
+			return
+		}
+		updatedDates++
+		updatedRows += len(prices)
+	}
+
+	if updatedRows > 0 {
+		cacheClient.Delete(ctx, "home:rankings", "rankings:top50", "sector:strength")
+		log.Printf("daily close backfill updated from %s: %d dates, %d rows", provider.Name(), updatedDates, updatedRows)
+		return
+	}
+	if lastErr != nil {
+		log.Printf("daily close backfill failed from %s: %v", provider.Name(), lastErr)
+		return
+	}
+	log.Printf("daily close backfill returned no rows from %s for %d days", provider.Name(), days)
 }
 
 func runDailyCloseUpdate(ctx context.Context, repo *repository.Repository, cacheClient *cache.Client, provider dailyPriceProvider) {

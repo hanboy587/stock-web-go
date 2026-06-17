@@ -22,7 +22,7 @@ docker compose up --build
 
 ## 가격 데이터
 
-공식 API 키가 있으면 앱 시작 직후와 평일 18:35(KST)에 최근 거래일의 일별 종가를 가져와 `prices` 테이블에 누적합니다.
+공식 API 키가 있으면 앱 시작 직후 최근 `DAILY_CLOSE_BACKFILL_DAYS`일을 백필하고, 평일 18:35(KST)에 최신 거래일의 일별 종가를 가져와 `prices` 테이블에 누적합니다.
 
 우선순위:
 
@@ -32,6 +32,7 @@ docker compose up --build
 ```bash
 KRX_AUTH_KEY=<KRX Open API key>
 PUBLIC_DATA_SERVICE_KEY=<data.go.kr service key>
+DAILY_CLOSE_BACKFILL_DAYS=10
 NEWS_QUERIES='코스피 OR 코스닥 증시|국내 주식 시장 이슈|기관 외국인 순매수'
 ```
 

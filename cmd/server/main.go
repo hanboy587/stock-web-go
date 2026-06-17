@@ -37,11 +37,11 @@ func main() {
 	defer cacheClient.Close()
 
 	repo := repository.New(pool)
-	scheduler := batch.Start(repo, cacheClient, cfg.KRXAuthKey, cfg.PublicDataServiceKey)
+	scheduler := batch.Start(repo, cacheClient, cfg.KRXAuthKey, cfg.PublicDataServiceKey, cfg.DailyCloseBackfillDays)
 	defer scheduler.Stop()
 
 	app := fiber.New(fiber.Config{
-		AppName:      "StockHunter",
+		AppName:     "StockHunter",
 		ReadTimeout: 10 * time.Second,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
 			if fiberErr, ok := err.(*fiber.Error); ok {
