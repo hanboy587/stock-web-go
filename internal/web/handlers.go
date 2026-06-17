@@ -69,6 +69,32 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 	app.Get("/sector", h.sector)
 	app.Get("/news", h.news)
 	app.Get("/stock/:code", h.stock)
+	app.Get("/healthz", h.healthz)
+}
+
+func (h *Handler) healthz(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(requestContext(c), 2*time.Second)
+	defer cancel()
+
+	checks := fiber.Map{
+		"database": "ok",
+		"redis":    "ok",
+	}
+	status := fiber.StatusOK
+	if err := h.repo.Ping(ctx); err != nil {
+		checks["database"] = err.Error()
+		status = fiber.StatusServiceUnavailable
+	}
+	if err := h.cache.Ping(ctx); err != nil {
+		checks["redis"] = err.Error()
+		status = fiber.StatusServiceUnavailable
+	}
+
+	return c.Status(status).JSON(fiber.Map{
+		"ok":        status == fiber.StatusOK,
+		"checks":    checks,
+		"generated": time.Now().UTC().Format(time.RFC3339),
+	})
 }
 
 func (h *Handler) home(c *fiber.Ctx) error {

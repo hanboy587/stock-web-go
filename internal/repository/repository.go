@@ -18,6 +18,10 @@ func New(db *pgxpool.Pool) *Repository {
 	return &Repository{db: db}
 }
 
+func (r *Repository) Ping(ctx context.Context) error {
+	return r.db.Ping(ctx)
+}
+
 func (r *Repository) Sectors(ctx context.Context) ([]string, error) {
 	rows, err := r.db.Query(ctx, `select distinct sector from stocks order by sector`)
 	if err != nil {

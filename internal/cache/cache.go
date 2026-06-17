@@ -29,6 +29,13 @@ func (c *Client) Close() {
 	}
 }
 
+func (c *Client) Ping(ctx context.Context) error {
+	if c == nil || !c.enabled {
+		return redis.Nil
+	}
+	return c.rdb.Ping(ctx).Err()
+}
+
 func (c *Client) GetJSON(ctx context.Context, key string, dest any) bool {
 	if c == nil || !c.enabled {
 		return false
