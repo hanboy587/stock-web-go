@@ -299,6 +299,7 @@ func (h *Handler) renderPartial(c *fiber.Ctx, file string, name string, data Vie
 
 func parseFilters(c *fiber.Ctx) models.Filters {
 	return models.Filters{
+		Query:               strings.TrimSpace(c.Query("q")),
 		Sector:             c.Query("sector"),
 		MinMarketCap:       parseFloat(c.Query("min_market_cap")),
 		MaxMarketCap:       parseFloat(c.Query("max_market_cap")),

@@ -3,6 +3,7 @@ package models
 import "time"
 
 type Filters struct {
+	Query               string
 	Sector             string
 	MinMarketCap       float64
 	MaxMarketCap       float64

@@ -14,6 +14,10 @@
         hx-push-url="true">
     <div class="space-y-4">
       <label class="block">
+        <span class="field-label">종목 검색</span>
+        <input class="field" type="search" name="q" placeholder="삼성전자, 005930, 반도체" value="{{.Filters.Query}}">
+      </label>
+      <label class="block">
         <span class="field-label">섹터</span>
         <select class="field" name="sector">
           <option value="">전체</option>

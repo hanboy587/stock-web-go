@@ -55,17 +55,18 @@ func (r *Repository) Screener(ctx context.Context, filters models.Filters, limit
 	rows, err := r.db.Query(ctx, metricsQuery+`
 select *
 from scored
-where ($1 = '' or sector = $1)
-  and ($2::numeric = 0 or market_cap >= $2)
-  and ($3::numeric = 0 or market_cap <= $3)
-  and ($4::numeric = 0 or revenue_growth >= $4)
-  and ($5::numeric = 0 or operating_profit_growth >= $5)
-  and ($6::numeric = 0 or per <= $6)
-  and ($7::numeric = 0 or pbr <= $7)
-  and ($8::boolean = false or distance_from_high >= -10)
-  and ($9::boolean = false or institution_net_20 > 0)
+where ($1 = '' or code ilike '%' || $1 || '%' or name ilike '%' || $1 || '%' or sector ilike '%' || $1 || '%')
+  and ($2 = '' or sector = $2)
+  and ($3::numeric = 0 or market_cap >= $3)
+  and ($4::numeric = 0 or market_cap <= $4)
+  and ($5::numeric = 0 or revenue_growth >= $5)
+  and ($6::numeric = 0 or operating_profit_growth >= $6)
+  and ($7::numeric = 0 or per <= $7)
+  and ($8::numeric = 0 or pbr <= $8)
+  and ($9::boolean = false or distance_from_high >= -10)
+  and ($10::boolean = false or institution_net_20 > 0)
 order by total_score desc, revenue_growth desc
-limit $10`, filters.Sector, filters.MinMarketCap, filters.MaxMarketCap, filters.MinRevenueGrowth,
+limit $11`, filters.Query, filters.Sector, filters.MinMarketCap, filters.MaxMarketCap, filters.MinRevenueGrowth,
 		filters.MinOperatingGrowth, filters.MaxPER, filters.MaxPBR, filters.NearHighOnly, filters.InstitutionOnly, limit)
 	if err != nil {
 		return nil, err
