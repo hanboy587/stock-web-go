@@ -10,7 +10,6 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/compress"
-	"github.com/gofiber/fiber/v2/middleware/helmet"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 
 	"stockhunter/internal/batch"
@@ -55,7 +54,6 @@ func main() {
 		},
 	})
 	app.Use(recover.New())
-	app.Use(helmet.New())
 	app.Use(compress.New(compress.Config{Level: compress.LevelBestSpeed}))
 
 	app.Static("/static", "./static")
