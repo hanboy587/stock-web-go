@@ -23,6 +23,7 @@ type Handler struct {
 	cache            *cache.Client
 	newsClient       *news.Client
 	newsQueries      []string
+	newsCategories   []models.NewsCategory
 	marketDataConfig MarketDataConfig
 	funcs            template.FuncMap
 }
@@ -34,20 +35,22 @@ type MarketDataConfig struct {
 }
 
 type ViewData struct {
-	Title            string
-	Active           string
-	Stocks           []models.StockMetric
-	Stock            models.StockMetric
-	Prices           []models.PricePoint
-	Sectors          []string
-	Strengths        []models.SectorStrength
-	News             []models.NewsItem
-	Filters          models.Filters
-	Generated        time.Time
-	Error            string
-	ResultPath       string
-	MarketDataStatus string
-	PriceStatus      models.PriceStatus
+	Title              string
+	Active             string
+	Stocks             []models.StockMetric
+	Stock              models.StockMetric
+	Prices             []models.PricePoint
+	Sectors            []string
+	Strengths          []models.SectorStrength
+	News               []models.NewsItem
+	NewsCategories     []models.NewsCategory
+	ActiveNewsCategory string
+	Filters            models.Filters
+	Generated          time.Time
+	Error              string
+	ResultPath         string
+	MarketDataStatus   string
+	PriceStatus        models.PriceStatus
 }
 
 func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Client, newsClient *news.Client, newsQueries []string, marketDataConfig MarketDataConfig) {
@@ -56,6 +59,7 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 		cache:            cacheClient,
 		newsClient:       newsClient,
 		newsQueries:      newsQueries,
+		newsCategories:   defaultNewsCategories(newsQueries),
 		marketDataConfig: marketDataConfig,
 		funcs: template.FuncMap{
 			"krw":        krw,
@@ -77,6 +81,7 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 	app.Get("/stock/:code", h.stock)
 	app.Get("/healthz", h.healthz)
 	app.Get("/api/status", h.apiStatus)
+	app.Get("/api/news", h.apiNews)
 }
 
 func (h *Handler) healthz(c *fiber.Ctx) error {
@@ -124,9 +129,25 @@ func (h *Handler) apiStatus(c *fiber.Ctx) error {
 			"price_count": priceStatus.PriceCount,
 		},
 		"news": fiber.Map{
-			"cache_seconds": 600,
-			"query_count":   len(h.newsQueries),
+			"cache_seconds":  600,
+			"category_count": len(h.newsCategories),
+			"query_count":    len(h.newsQueries),
 		},
+		"generated": time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (h *Handler) apiNews(c *fiber.Ctx) error {
+	ctx := requestContext(c)
+	category := h.newsCategory(c.Query("category", "all"))
+	limit := parseInt(c.Query("limit"), 36)
+	if limit <= 0 || limit > 60 {
+		limit = 36
+	}
+	return c.JSON(fiber.Map{
+		"category":  category.Key,
+		"label":     category.Label,
+		"items":     h.marketNews(ctx, category.Key, limit),
 		"generated": time.Now().UTC().Format(time.RFC3339),
 	})
 }
@@ -142,7 +163,7 @@ func (h *Handler) home(c *fiber.Ctx) error {
 		}
 		h.cache.SetJSON(ctx, "home:rankings", stocks, 5*time.Minute)
 	}
-	newsItems := h.marketNews(ctx, 8)
+	newsItems := h.marketNews(ctx, "all", 8)
 	return h.render(c, "home.html", ViewData{
 		Title:     "오늘의 시장 이슈",
 		Active:    "home",
@@ -220,11 +241,14 @@ func (h *Handler) sector(c *fiber.Ctx) error {
 
 func (h *Handler) news(c *fiber.Ctx) error {
 	ctx := requestContext(c)
+	category := h.newsCategory(c.Query("category", "all"))
 	return h.render(c, "news.html", ViewData{
-		Title:     "시장 이슈",
-		Active:    "news",
-		News:      h.marketNews(ctx, 36),
-		Generated: time.Now(),
+		Title:              "시장 이슈",
+		Active:             "news",
+		News:               h.marketNews(ctx, category.Key, 36),
+		NewsCategories:     h.newsCategories,
+		ActiveNewsCategory: category.Key,
+		Generated:          time.Now(),
 	})
 }
 
@@ -248,23 +272,86 @@ func (h *Handler) stock(c *fiber.Ctx) error {
 	})
 }
 
-func (h *Handler) marketNews(ctx context.Context, limit int) []models.NewsItem {
+func (h *Handler) marketNews(ctx context.Context, categoryKey string, limit int) []models.NewsItem {
+	category := h.newsCategory(categoryKey)
 	var items []models.NewsItem
-	if h.cache.GetJSON(ctx, "news:market", &items) && len(items) > 0 {
+	cacheKey := "news:market:" + category.Key
+	if h.cache.GetJSON(ctx, cacheKey, &items) && len(items) > 0 {
 		if limit > 0 && len(items) > limit {
 			return items[:limit]
 		}
 		return items
 	}
-	items, err := h.newsClient.FetchMarketNews(ctx, h.newsQueries, 48)
+	items, err := h.newsClient.FetchMarketNews(ctx, category.Queries, 48)
 	if err != nil {
 		return nil
 	}
-	h.cache.SetJSON(ctx, "news:market", items, 10*time.Minute)
+	h.cache.SetJSON(ctx, cacheKey, items, 10*time.Minute)
 	if limit > 0 && len(items) > limit {
 		return items[:limit]
 	}
 	return items
+}
+
+func (h *Handler) newsCategory(key string) models.NewsCategory {
+	key = strings.TrimSpace(strings.ToLower(key))
+	for _, category := range h.newsCategories {
+		if category.Key == key {
+			return category
+		}
+	}
+	return h.newsCategories[0]
+}
+
+func defaultNewsCategories(baseQueries []string) []models.NewsCategory {
+	return []models.NewsCategory{
+		{
+			Key:         "all",
+			Label:       "전체",
+			Description: "시장, 수급, 섹터, 실적 이슈를 한 번에 봅니다.",
+			Queries:     baseQueries,
+		},
+		{
+			Key:         "market",
+			Label:       "시장",
+			Description: "코스피, 코스닥, 금리, 환율 등 지수와 거시 환경 중심입니다.",
+			Queries: []string{
+				"코스피 코스닥 증시",
+				"국내 주식 시장 이슈",
+				"금리 환율 국내 증시",
+			},
+		},
+		{
+			Key:         "flow",
+			Label:       "수급",
+			Description: "기관, 외국인, 공매도, 거래대금 흐름을 모읍니다.",
+			Queries: []string{
+				"기관 외국인 순매수 국내 주식",
+				"공매도 수급 국내 증시",
+				"거래대금 급증 국내 주식",
+			},
+		},
+		{
+			Key:         "sector",
+			Label:       "섹터",
+			Description: "반도체, 자동차, 방산, 전력, 바이오, 조선 등 주도 업종 이슈입니다.",
+			Queries: []string{
+				"반도체 자동차 방산 전력 바이오 조선 주식",
+				"AI 반도체 전력기기 조선 방산 국내 주식",
+				"바이오 배터리 로봇 국내 주식",
+			},
+		},
+		{
+			Key:         "earnings",
+			Label:       "실적",
+			Description: "상장사 실적 발표, 전망, 어닝 서프라이즈를 추적합니다.",
+			Queries: []string{
+				"국내 상장사 실적 전망",
+				"어닝 서프라이즈 국내 주식",
+				"영업이익 증가 국내 상장사",
+			},
+		},
+	}
 }
 
 func (h *Handler) stockNews(ctx context.Context, name string, code string, limit int) []models.NewsItem {
@@ -353,6 +440,17 @@ func parseFloat(value string) float64 {
 	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return 0
+	}
+	return parsed
+}
+
+func parseInt(value string, fallback int) int {
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
 	}
 	return parsed
 }

@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Filters struct {
-	Query               string
+	Query              string
 	Sector             string
 	MinMarketCap       float64
 	MaxMarketCap       float64
@@ -67,6 +67,13 @@ type NewsItem struct {
 	Source      string
 	PublishedAt time.Time
 	Query       string
+}
+
+type NewsCategory struct {
+	Key         string
+	Label       string
+	Description string
+	Queries     []string
 }
 
 type DailyPrice struct {
