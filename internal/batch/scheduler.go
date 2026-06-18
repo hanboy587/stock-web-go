@@ -82,6 +82,7 @@ func firstEnabledProvider(providers ...dailyPriceProvider) dailyPriceProvider {
 }
 
 func runDailyCloseBackfill(ctx context.Context, repo *repository.Repository, cacheClient *cache.Client, provider dailyPriceProvider, days int) {
+	started := time.Now().UTC()
 	if days <= 1 {
 		runDailyCloseUpdate(ctx, repo, cacheClient, provider)
 		return
@@ -91,6 +92,8 @@ func runDailyCloseBackfill(ctx context.Context, repo *repository.Repository, cac
 	var updatedDates int
 	var updatedRows int
 	var lastErr error
+	var targetStart time.Time
+	var targetEnd time.Time
 	for dayOffset := 0; dayOffset < days; dayOffset++ {
 		if ctx.Err() != nil {
 			lastErr = ctx.Err()
@@ -107,7 +110,22 @@ func runDailyCloseBackfill(ctx context.Context, repo *repository.Repository, cac
 		}
 		if err := repo.UpsertDailyPrices(ctx, prices); err != nil {
 			log.Printf("daily close backfill upsert failed for %s: %v", date.Format("2006-01-02"), err)
+			recordImportRun(repo, models.DataImportRun{
+				Provider:   provider.Name(),
+				Mode:       "backfill",
+				Status:     "failed",
+				StartedAt:  started,
+				FinishedAt: time.Now().UTC(),
+				Rows:       updatedRows,
+				Message:    err.Error(),
+			})
 			return
+		}
+		if targetEnd.IsZero() || date.After(targetEnd) {
+			targetEnd = date
+		}
+		if targetStart.IsZero() || date.Before(targetStart) {
+			targetStart = date
 		}
 		updatedDates++
 		updatedRows += len(prices)
@@ -115,33 +133,112 @@ func runDailyCloseBackfill(ctx context.Context, repo *repository.Repository, cac
 
 	if updatedRows > 0 {
 		cacheClient.Delete(ctx, "home:rankings", "rankings:top50", "sector:strength")
+		status := "success"
+		message := ""
+		if lastErr != nil {
+			status = "partial"
+			message = lastErr.Error()
+		}
+		recordImportRun(repo, models.DataImportRun{
+			Provider:    provider.Name(),
+			Mode:        "backfill",
+			Status:      status,
+			StartedAt:   started,
+			FinishedAt:  time.Now().UTC(),
+			TargetStart: targetStart,
+			TargetEnd:   targetEnd,
+			Rows:        updatedRows,
+			Message:     message,
+		})
 		log.Printf("daily close backfill updated from %s: %d dates, %d rows", provider.Name(), updatedDates, updatedRows)
 		return
 	}
 	if lastErr != nil {
+		recordImportRun(repo, models.DataImportRun{
+			Provider:   provider.Name(),
+			Mode:       "backfill",
+			Status:     "failed",
+			StartedAt:  started,
+			FinishedAt: time.Now().UTC(),
+			Message:    lastErr.Error(),
+		})
 		log.Printf("daily close backfill failed from %s: %v", provider.Name(), lastErr)
 		return
 	}
+	recordImportRun(repo, models.DataImportRun{
+		Provider:   provider.Name(),
+		Mode:       "backfill",
+		Status:     "empty",
+		StartedAt:  started,
+		FinishedAt: time.Now().UTC(),
+		Message:    "no rows returned",
+	})
 	log.Printf("daily close backfill returned no rows from %s for %d days", provider.Name(), days)
 }
 
 func runDailyCloseUpdate(ctx context.Context, repo *repository.Repository, cacheClient *cache.Client, provider dailyPriceProvider) {
+	started := time.Now().UTC()
 	now := time.Now().In(time.FixedZone("KST", 9*60*60))
 	prices, date, err := fetchRecentDailyPrices(ctx, provider, now)
 	if err != nil {
+		recordImportRun(repo, models.DataImportRun{
+			Provider:   provider.Name(),
+			Mode:       "latest",
+			Status:     "failed",
+			StartedAt:  started,
+			FinishedAt: time.Now().UTC(),
+			Message:    err.Error(),
+		})
 		log.Printf("daily close fetch failed from %s: %v", provider.Name(), err)
 		return
 	}
 	if len(prices) == 0 {
+		recordImportRun(repo, models.DataImportRun{
+			Provider:   provider.Name(),
+			Mode:       "latest",
+			Status:     "empty",
+			StartedAt:  started,
+			FinishedAt: time.Now().UTC(),
+			Message:    "no rows returned",
+		})
 		log.Printf("daily close fetch returned no rows from %s", provider.Name())
 		return
 	}
 	if err := repo.UpsertDailyPrices(ctx, prices); err != nil {
+		recordImportRun(repo, models.DataImportRun{
+			Provider:    provider.Name(),
+			Mode:        "latest",
+			Status:      "failed",
+			StartedAt:   started,
+			FinishedAt:  time.Now().UTC(),
+			TargetStart: date,
+			TargetEnd:   date,
+			Rows:        len(prices),
+			Message:     err.Error(),
+		})
 		log.Printf("daily close upsert failed: %v", err)
 		return
 	}
 	cacheClient.Delete(ctx, "home:rankings", "rankings:top50", "sector:strength")
+	recordImportRun(repo, models.DataImportRun{
+		Provider:    provider.Name(),
+		Mode:        "latest",
+		Status:      "success",
+		StartedAt:   started,
+		FinishedAt:  time.Now().UTC(),
+		TargetStart: date,
+		TargetEnd:   date,
+		Rows:        len(prices),
+	})
 	log.Printf("daily close updated from %s: %s %d rows", provider.Name(), date.Format("2006-01-02"), len(prices))
+}
+
+func recordImportRun(repo *repository.Repository, run models.DataImportRun) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := repo.RecordDataImportRun(ctx, run); err != nil {
+		log.Printf("record data import run failed: %v", err)
+	}
 }
 
 func fetchRecentDailyPrices(ctx context.Context, provider dailyPriceProvider, now time.Time) ([]models.DailyPrice, time.Time, error) {

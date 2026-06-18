@@ -37,6 +37,9 @@ func main() {
 	defer cacheClient.Close()
 
 	repo := repository.New(pool)
+	if err := repo.EnsureOperationalTables(ctx); err != nil {
+		log.Fatalf("prepare operational tables: %v", err)
+	}
 	scheduler := batch.Start(repo, cacheClient, cfg.KRXAuthKey, cfg.PublicDataServiceKey, cfg.DailyCloseBackfillDays)
 	defer scheduler.Stop()
 

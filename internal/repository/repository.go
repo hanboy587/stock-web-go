@@ -2,7 +2,9 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,6 +22,74 @@ func New(db *pgxpool.Pool) *Repository {
 
 func (r *Repository) Ping(ctx context.Context) error {
 	return r.db.Ping(ctx)
+}
+
+func (r *Repository) EnsureOperationalTables(ctx context.Context) error {
+	_, err := r.db.Exec(ctx, `
+create table if not exists data_import_runs (
+	id bigserial primary key,
+	provider text not null,
+	mode text not null,
+	status text not null,
+	started_at timestamptz not null,
+	finished_at timestamptz not null,
+	target_start date,
+	target_end date,
+	rows_inserted int not null default 0,
+	message text not null default ''
+);
+
+create index if not exists data_import_runs_finished_at_desc on data_import_runs(finished_at desc);`)
+	return err
+}
+
+func (r *Repository) RecordDataImportRun(ctx context.Context, run models.DataImportRun) error {
+	_, err := r.db.Exec(ctx, `
+insert into data_import_runs (provider, mode, status, started_at, finished_at, target_start, target_end, rows_inserted, message)
+values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		run.Provider, run.Mode, run.Status, run.StartedAt, run.FinishedAt, nullableTime(run.TargetStart), nullableTime(run.TargetEnd), run.Rows, run.Message)
+	return err
+}
+
+func (r *Repository) LastDataImportRun(ctx context.Context) (models.DataImportRun, bool, error) {
+	var run models.DataImportRun
+	var targetStart sql.NullTime
+	var targetEnd sql.NullTime
+	err := r.db.QueryRow(ctx, `
+select provider, mode, status, started_at, finished_at, target_start, target_end, rows_inserted, message
+from data_import_runs
+order by finished_at desc
+limit 1`).Scan(
+		&run.Provider,
+		&run.Mode,
+		&run.Status,
+		&run.StartedAt,
+		&run.FinishedAt,
+		&targetStart,
+		&targetEnd,
+		&run.Rows,
+		&run.Message,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return models.DataImportRun{}, false, nil
+		}
+		return models.DataImportRun{}, false, err
+	}
+	if targetStart.Valid {
+		run.TargetStart = targetStart.Time
+	}
+	if targetEnd.Valid {
+		run.TargetEnd = targetEnd.Time
+	}
+	return run, true, nil
+}
+
+func nullableTime(value time.Time) any {
+	if value.IsZero() {
+		return nil
+	}
+	return value
 }
 
 func (r *Repository) Sectors(ctx context.Context) ([]string, error) {

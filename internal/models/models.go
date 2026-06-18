@@ -61,6 +61,18 @@ type PriceStatus struct {
 	PriceCount int
 }
 
+type DataImportRun struct {
+	Provider    string
+	Mode        string
+	Status      string
+	StartedAt   time.Time
+	FinishedAt  time.Time
+	TargetStart time.Time
+	TargetEnd   time.Time
+	Rows        int
+	Message     string
+}
+
 type NewsItem struct {
 	Title       string
 	Link        string

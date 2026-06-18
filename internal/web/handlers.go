@@ -117,11 +117,18 @@ func (h *Handler) apiStatus(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
+	lastImport := any(nil)
+	if run, ok, err := h.repo.LastDataImportRun(ctx); err != nil {
+		return err
+	} else if ok {
+		lastImport = importRunMap(run)
+	}
 	return c.JSON(fiber.Map{
 		"market_data": fiber.Map{
 			"provider":      h.marketDataConfig.Provider,
 			"status":        h.marketDataConfig.Status,
 			"backfill_days": h.marketDataConfig.BackfillDays,
+			"last_import":   lastImport,
 		},
 		"prices": fiber.Map{
 			"latest_date": priceStatus.LatestDate.Format("2006-01-02"),
@@ -135,6 +142,27 @@ func (h *Handler) apiStatus(c *fiber.Ctx) error {
 		},
 		"generated": time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func importRunMap(run models.DataImportRun) fiber.Map {
+	return fiber.Map{
+		"provider":     run.Provider,
+		"mode":         run.Mode,
+		"status":       run.Status,
+		"started_at":   run.StartedAt.UTC().Format(time.RFC3339),
+		"finished_at":  run.FinishedAt.UTC().Format(time.RFC3339),
+		"target_start": dateOrEmpty(run.TargetStart),
+		"target_end":   dateOrEmpty(run.TargetEnd),
+		"rows":         run.Rows,
+		"message":      run.Message,
+	}
+}
+
+func dateOrEmpty(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format("2006-01-02")
 }
 
 func (h *Handler) apiNews(c *fiber.Ctx) error {
