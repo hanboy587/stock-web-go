@@ -45,6 +45,7 @@ type ViewData struct {
 	News               []models.NewsItem
 	NewsCategories     []models.NewsCategory
 	ActiveNewsCategory string
+	DataImportRuns     []models.DataImportRun
 	Filters            models.Filters
 	Generated          time.Time
 	Error              string
@@ -70,6 +71,9 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 			"scoreTone":  scoreTone,
 			"timeAgo":    timeAgo,
 			"date":       func(t time.Time) string { return t.Format("2006-01-02") },
+			"dateTime":   dateTime,
+			"dateDash":   dateDash,
+			"statusTone": importStatusTone,
 		},
 	}
 
@@ -78,10 +82,31 @@ func Register(app *fiber.App, repo *repository.Repository, cacheClient *cache.Cl
 	app.Get("/rankings", h.rankings)
 	app.Get("/sector", h.sector)
 	app.Get("/news", h.news)
+	app.Get("/status", h.status)
 	app.Get("/stock/:code", h.stock)
 	app.Get("/healthz", h.healthz)
 	app.Get("/api/status", h.apiStatus)
 	app.Get("/api/news", h.apiNews)
+}
+
+func (h *Handler) status(c *fiber.Ctx) error {
+	ctx := requestContext(c)
+	priceStatus, err := h.repo.PriceStatus(ctx)
+	if err != nil {
+		return err
+	}
+	runs, err := h.repo.DataImportRuns(ctx, 10)
+	if err != nil {
+		return err
+	}
+	return h.render(c, "status.html", ViewData{
+		Title:            "데이터 상태",
+		Active:           "status",
+		PriceStatus:      priceStatus,
+		DataImportRuns:   runs,
+		Generated:        time.Now(),
+		MarketDataStatus: withPriceStatus(h.marketDataConfig.Status, priceStatus),
+	})
 }
 
 func (h *Handler) healthz(c *fiber.Ctx) error {
@@ -163,6 +188,33 @@ func dateOrEmpty(value time.Time) string {
 		return ""
 	}
 	return value.Format("2006-01-02")
+}
+
+func dateDash(value time.Time) string {
+	if value.IsZero() {
+		return "-"
+	}
+	return value.Format("2006-01-02")
+}
+
+func dateTime(value time.Time) string {
+	if value.IsZero() {
+		return "-"
+	}
+	return value.In(time.FixedZone("KST", 9*60*60)).Format("2006-01-02 15:04:05")
+}
+
+func importStatusTone(status string) string {
+	switch status {
+	case "success":
+		return "bg-emerald-100 text-emerald-800"
+	case "partial", "empty":
+		return "bg-amber-100 text-amber-800"
+	case "failed":
+		return "bg-rose-100 text-rose-800"
+	default:
+		return "bg-slate-100 text-slate-700"
+	}
 }
 
 func (h *Handler) apiNews(c *fiber.Ctx) error {

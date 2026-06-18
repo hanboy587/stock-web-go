@@ -62,6 +62,7 @@ type PriceStatus struct {
 }
 
 type DataImportRun struct {
+	ID          int64
 	Provider    string
 	Mode        string
 	Status      string

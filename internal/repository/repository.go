@@ -52,37 +52,58 @@ values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
 }
 
 func (r *Repository) LastDataImportRun(ctx context.Context) (models.DataImportRun, bool, error) {
-	var run models.DataImportRun
-	var targetStart sql.NullTime
-	var targetEnd sql.NullTime
-	err := r.db.QueryRow(ctx, `
-select provider, mode, status, started_at, finished_at, target_start, target_end, rows_inserted, message
-from data_import_runs
-order by finished_at desc
-limit 1`).Scan(
-		&run.Provider,
-		&run.Mode,
-		&run.Status,
-		&run.StartedAt,
-		&run.FinishedAt,
-		&targetStart,
-		&targetEnd,
-		&run.Rows,
-		&run.Message,
-	)
+	runs, err := r.DataImportRuns(ctx, 1)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return models.DataImportRun{}, false, nil
-		}
 		return models.DataImportRun{}, false, err
 	}
-	if targetStart.Valid {
-		run.TargetStart = targetStart.Time
+	if len(runs) == 0 {
+		return models.DataImportRun{}, false, nil
 	}
-	if targetEnd.Valid {
-		run.TargetEnd = targetEnd.Time
+	return runs[0], true, nil
+}
+
+func (r *Repository) DataImportRuns(ctx context.Context, limit int) ([]models.DataImportRun, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 10
 	}
-	return run, true, nil
+	rows, err := r.db.Query(ctx, `
+select id, provider, mode, status, started_at, finished_at, target_start, target_end, rows_inserted, message
+from data_import_runs
+order by finished_at desc
+limit $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var runs []models.DataImportRun
+	for rows.Next() {
+		var run models.DataImportRun
+		var targetStart sql.NullTime
+		var targetEnd sql.NullTime
+		if err := rows.Scan(
+			&run.ID,
+			&run.Provider,
+			&run.Mode,
+			&run.Status,
+			&run.StartedAt,
+			&run.FinishedAt,
+			&targetStart,
+			&targetEnd,
+			&run.Rows,
+			&run.Message,
+		); err != nil {
+			return nil, err
+		}
+		if targetStart.Valid {
+			run.TargetStart = targetStart.Time
+		}
+		if targetEnd.Valid {
+			run.TargetEnd = targetEnd.Time
+		}
+		runs = append(runs, run)
+	}
+	return runs, rows.Err()
 }
 
 func nullableTime(value time.Time) any {

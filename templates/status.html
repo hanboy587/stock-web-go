@@ -1,0 +1,62 @@
+{{define "content"}}
+<section class="mb-6 flex flex-col justify-between gap-3 border-b border-slate-200 pb-5 md:flex-row md:items-end">
+  <div>
+    <p class="text-sm font-semibold text-slate-500">Operations</p>
+    <h1 class="mt-1 text-3xl font-bold tracking-normal text-slate-950">데이터 상태</h1>
+  </div>
+  <div class="text-sm text-slate-500">갱신 {{.Generated.Format "15:04:05"}}</div>
+</section>
+
+<section class="grid gap-4 md:grid-cols-3">
+  <div class="metric"><span>가격 기준일</span><strong>{{dateDash .PriceStatus.LatestDate}}</strong></div>
+  <div class="metric"><span>저장 종목</span><strong>{{number .PriceStatus.StockCount}}개</strong></div>
+  <div class="metric"><span>가격 row</span><strong>{{number .PriceStatus.PriceCount}}</strong></div>
+</section>
+
+<section class="mt-5 rounded border border-slate-200 bg-white p-4 shadow-sm">
+  <h2 class="text-base font-bold">공식 종가 수집</h2>
+  <p class="mt-2 text-sm leading-6 text-slate-600">{{.MarketDataStatus}}</p>
+  <div class="mt-4 flex flex-wrap gap-2 text-sm">
+    <a class="rounded border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:border-slate-400" href="/api/status" target="_blank" rel="noreferrer">상태 JSON</a>
+    <a class="rounded border border-slate-200 px-3 py-2 font-semibold text-slate-700 hover:border-slate-400" href="/healthz" target="_blank" rel="noreferrer">헬스체크</a>
+  </div>
+</section>
+
+<section class="mt-5 rounded border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-200 px-4 py-3">
+    <h2 class="text-base font-bold">최근 수집 이력</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[860px] text-left text-sm">
+      <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-3">완료 시각</th>
+          <th class="px-4 py-3">상태</th>
+          <th class="px-4 py-3">소스</th>
+          <th class="px-4 py-3">모드</th>
+          <th class="px-4 py-3">대상 기간</th>
+          <th class="px-4 py-3">row</th>
+          <th class="px-4 py-3">메시지</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        {{range .DataImportRuns}}
+          <tr>
+            <td class="px-4 py-3">{{dateTime .FinishedAt}}</td>
+            <td class="px-4 py-3"><span class="rounded px-2 py-1 text-xs font-bold {{statusTone .Status}}">{{.Status}}</span></td>
+            <td class="px-4 py-3">{{.Provider}}</td>
+            <td class="px-4 py-3">{{.Mode}}</td>
+            <td class="px-4 py-3">{{dateDash .TargetStart}} ~ {{dateDash .TargetEnd}}</td>
+            <td class="px-4 py-3">{{number .Rows}}</td>
+            <td class="px-4 py-3 text-slate-500">{{.Message}}</td>
+          </tr>
+        {{else}}
+          <tr>
+            <td class="px-4 py-8 text-center text-slate-500" colspan="7">아직 공식 종가 수집 이력이 없습니다.</td>
+          </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</section>
+{{end}}
